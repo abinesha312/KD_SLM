@@ -1,0 +1,43 @@
+seed: 42
+
+models:
+  teacher_id: google/gemma-4-E2B-it
+  student_id: Qwen/Qwen2.5-Omni-7B
+  cache_dir: outputs/models
+
+dataset:
+  name: Azmayen/Medical-conversational-data
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  processed_dir: outputs/data/processed
+
+system_prompt: >
+  You are a helpful medical information assistant. Provide general educational
+  information only. Do not diagnose, prescribe, or replace professional medical
+  advice. Always recommend consulting a qualified healthcare provider.
+
+generation:
+  temperature: 0.7
+  top_p: 0.9
+  max_new_tokens: 512
+  do_sample: true
+
+distillation:
+  teacher_labels_dir: outputs/teacher_labels
+  checkpoint_dir: outputs/checkpoints/qwen_distilled
+  training_logs_path: outputs/checkpoints/training_logs.json
+  learning_rate: 2.0e-5
+  num_train_epochs: 2
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 4
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  max_seq_length: 2048
+
+evaluation:
+  qa_results_dir: outputs/qa_results
+  max_samples: 100
+  figures_dir: outputs/figures
