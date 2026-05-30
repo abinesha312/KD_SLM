@@ -10,9 +10,26 @@ Modular, reproducible pipeline demonstrating **domain-specialized knowledge dist
 |------|-------|-----------------|
 | Teacher | Gemma 4 E2B (instruction-tuned) | `google/gemma-4-E2B-it` |
 | Student (base + distilled) | Qwen2.5-Omni-7B | `Qwen/Qwen2.5-Omni-7B` |
-| Dataset | Medical conversational data | `Azmayen/Medical-conversational-data` |
+| Dataset | Medical QA / consultation data | [`HoangHa/medical-data`](https://huggingface.co/datasets/HoangHa/medical-data) (`RandomQA` subset by default) |
 
 Distillation uses **response-level** pseudo-labeling (cross-architecture; no shared tokenizer required).
+
+### Dataset subsets
+
+[`HoangHa/medical-data`](https://huggingface.co/datasets/HoangHa/medical-data) includes four subsets:
+
+| Subset | Rows | Best for |
+|--------|------|----------|
+| `RandomQA` | ~67k | **QA distillation** (question + answer pairs) — default |
+| `english` | ~109k | Multi-turn English clinical conversations |
+| `vietnamese` | ~58k | Multi-turn Vietnamese clinical conversations |
+| `RandomQuestion` | ~61k | Question-only prompts (no reference answers) |
+
+Change subset in [`config/default.yaml`](config/default.yaml) or via CLI:
+
+```bash
+python scripts/02_prepare_dataset.py --subset english --max-rows 5000
+```
 
 ## Quick start (local)
 
@@ -24,7 +41,7 @@ python -m venv .venv
 pip install -r requirements.txt
 pip install -e .
 
-# 2. Configure Hugging Face token (required for gated dataset)
+# 2. Configure Hugging Face token (required for model downloads)
 copy .env.example .env
 # Edit .env and set HF_TOKEN=hf_...
 
@@ -91,7 +108,7 @@ python scripts/05_run_qa_comparison.py --query "What is hypertension?"
 
 - Python 3.10+
 - CUDA GPU recommended (Colab H100 or 24GB+ VRAM)
-- Hugging Face account with access to the gated dataset
+- Hugging Face account (for model downloads; dataset is public)
 
 ## License
 

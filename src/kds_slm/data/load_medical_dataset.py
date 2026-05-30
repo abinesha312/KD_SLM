@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
-from datasets import load_dataset
+from datasets import Dataset, DatasetDict, load_dataset
 from sklearn.model_selection import train_test_split
 
 from kds_slm.config import AppConfig, ensure_hf_login
@@ -17,18 +17,44 @@ logger = get_logger(__name__)
 
 
 def load_raw_dataset(cfg: AppConfig):
-    ensure_hf_login(cfg)
-    logger.info("Loading dataset %s", cfg.dataset_name)
-    return load_dataset(cfg.dataset_name, token=cfg.hf_token)
+    """Load HoangHa/medical-data (or any HF dataset with optional config subset)."""
+    logger.info(
+        "Loading dataset %s subset=%s split=%s",
+        cfg.dataset_name,
+        cfg.dataset_subset,
+        cfg.dataset_split,
+    )
+    kwargs: dict = {}
+    if cfg.hf_token:
+        kwargs["token"] = cfg.hf_token
+
+    return load_dataset(
+        cfg.dataset_name,
+        cfg.dataset_subset,
+        split=cfg.dataset_split,
+        **kwargs,
+    )
 
 
-def normalize_dataset(raw_ds, seed: int) -> pd.DataFrame:
+def _iter_rows(data: Dataset | DatasetDict, subset: str):
+    if isinstance(data, DatasetDict):
+        split_name = list(data.keys())[0]
+        iterable = data[split_name]
+        label = split_name
+    else:
+        iterable = data
+        label = subset
+    return iterable, label
+
+
+def normalize_dataset(data: Dataset | DatasetDict, cfg: AppConfig) -> pd.DataFrame:
     records: list[dict[str, str]] = []
-    split_name = list(raw_ds.keys())[0]
-    data = raw_ds[split_name]
+    iterable, label = _iter_rows(data, cfg.dataset_subset)
 
-    for idx, row in enumerate(data):
-        normalized = normalize_row(dict(row), row_id=f"{split_name}_{idx}")
+    for idx, row in enumerate(iterable):
+        row_dict = dict(row)
+        row_id = str(row_dict.get("id") or f"{label}_{idx}")
+        normalized = normalize_row(row_dict, row_id=row_id)
         if normalized:
             records.append(normalized)
 
@@ -38,7 +64,17 @@ def normalize_dataset(raw_ds, seed: int) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(records).drop_duplicates(subset=["prompt"]).reset_index(drop=True)
-    logger.info("Normalized %d unique prompts from split '%s'", len(df), split_name)
+
+    if cfg.max_prepare_rows and len(df) > cfg.max_prepare_rows:
+        df = df.sample(n=cfg.max_prepare_rows, random_state=cfg.seed).reset_index(drop=True)
+        logger.info("Sampled %d rows (max_prepare_rows=%d)", len(df), cfg.max_prepare_rows)
+
+    logger.info(
+        "Normalized %d unique prompts from %s/%s",
+        len(df),
+        cfg.dataset_name,
+        cfg.dataset_subset,
+    )
     return df
 
 
@@ -84,8 +120,9 @@ def load_split(split_dir: Path, split_name: str) -> pd.DataFrame:
 
 
 def prepare_dataset(cfg: AppConfig) -> dict[str, pd.DataFrame]:
+    ensure_hf_login(cfg)
     raw = load_raw_dataset(cfg)
-    df = normalize_dataset(raw, cfg.seed)
+    df = normalize_dataset(raw, cfg)
     splits = split_dataset(df, cfg)
     out_dir = cfg.resolve(cfg.processed_dir)
     save_splits(splits, out_dir)

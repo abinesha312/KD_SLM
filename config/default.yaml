@@ -6,11 +6,17 @@ models:
   cache_dir: outputs/models
 
 dataset:
-  name: Azmayen/Medical-conversational-data
+  name: HoangHa/medical-data
+  # Subsets: RandomQA | english | vietnamese | RandomQuestion
+  # RandomQA is recommended for QA distillation (question + answer pairs)
+  subset: RandomQA
+  split: train
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
   processed_dir: outputs/data/processed
+  # Optional cap for faster iteration (null = use all rows in subset)
+  max_prepare_rows: 10000
 
 system_prompt: >
   You are a helpful medical information assistant. Provide general educational

@@ -3,7 +3,29 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
+
+# Strip chain-of-thought / thinking blocks from HoangHa/medical-data answers
+_GEMMA_THINK = re.compile(
+    r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>",
+    re.IGNORECASE,
+)
+_REDACTED_THINK = re.compile(
+    r"<\s*redacted_thinking\s*>[\s\S]*?<\s*/\s*redacted_thinking\s*>",
+    re.IGNORECASE,
+)
+_THINKING_PATTERNS = [_GEMMA_THINK, _REDACTED_THINK]
+
+
+def strip_thinking(text: str) -> str:
+    """Remove embedded thinking blocks and trim whitespace."""
+    if not text:
+        return ""
+    cleaned = text
+    for pattern in _THINKING_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
+    return cleaned.strip()
 
 
 def _first_user_message(messages: list[dict[str, Any]]) -> str | None:
@@ -23,7 +45,7 @@ def _last_assistant_message(messages: list[dict[str, Any]]) -> str | None:
         if role in ("assistant", "doctor", "agent", "gpt", "bot"):
             content = msg.get("content") or msg.get("text") or msg.get("message")
             if isinstance(content, str) and content.strip():
-                answer = content.strip()
+                answer = strip_thinking(content.strip())
     return answer
 
 
@@ -73,7 +95,7 @@ def normalize_row(row: dict[str, Any], row_id: str) -> dict[str, str] | None:
         if prompt is None and p_key in row and isinstance(row[p_key], str):
             prompt = row[p_key].strip()
         if reference is None and r_key in row and isinstance(row[r_key], str):
-            reference = row[r_key].strip()
+            reference = strip_thinking(row[r_key].strip())
 
     if prompt is None:
         for key in ("text", "content", "description", "patient", "Description", "Patient"):
@@ -90,11 +112,15 @@ def normalize_row(row: dict[str, Any], row_id: str) -> dict[str, str] | None:
     if not prompt:
         return None
 
-    return {
+    result: dict[str, str] = {
         "id": row_id,
         "prompt": prompt,
         "reference_answer": reference or "",
     }
+    for meta_key in ("category", "complexity", "subset", "target_disease"):
+        if meta_key in row and row[meta_key] is not None:
+            result[meta_key] = str(row[meta_key])
+    return result
 
 
 def build_chat_messages(system_prompt: str, user_prompt: str) -> list[dict[str, str]]:

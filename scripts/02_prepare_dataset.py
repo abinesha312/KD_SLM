@@ -20,9 +20,24 @@ logger = get_logger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prepare medical dataset splits")
     parser.add_argument("--config", default=None, help="Path to YAML config")
+    parser.add_argument(
+        "--subset",
+        default=None,
+        help="Dataset subset (RandomQA, english, vietnamese, RandomQuestion)",
+    )
+    parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="Max rows to sample after normalization (overrides config)",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if args.subset:
+        cfg.dataset_subset = args.subset
+    if args.max_rows is not None:
+        cfg.max_prepare_rows = args.max_rows
     splits = prepare_dataset(cfg)
     for name, frame in splits.items():
         logger.info("%s: %d rows", name, len(frame))
